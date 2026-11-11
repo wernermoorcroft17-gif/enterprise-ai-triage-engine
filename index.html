@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise AI Support & PII Triage Engine</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --accent: #38bdf8; --text: #f8fafc; --muted: #94a3b8; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 1000px; margin: 2rem auto; padding: 0 1.25rem; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        .status-pill { font-size: 0.8rem; padding: 0.3rem 0.75rem; border-radius: 999px; background: #065f46; color: #a7f3d0; font-weight: 600; }
+        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        textarea { width: 100%; height: 90px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; box-sizing: border-box; }
+        .btn-row { display: flex; gap: 0.75rem; margin-top: 0.85rem; flex-wrap: wrap; }
+        button { background: var(--accent); color: #0f172a; border: none; padding: 0.65rem 1.25rem; border-radius: 6px; font-weight: 700; cursor: pointer; }
+        button.secondary { background: #334155; color: var(--text); font-weight: 500; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.88rem; }
+        th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid var(--border); }
+        .tag { padding: 0.2rem 0.55rem; border-radius: 4px; background: #0284c7; color: #fff; font-size: 0.78rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1 style="margin:0; font-size:1.5rem;">Enterprise AI Support & PII Triage Engine</h1>
+            <p style="margin:0.25rem 0 0 0; color:var(--muted); font-size:0.9rem;">AI-901/AI-103 Local LLM Pipeline • DP-300 Indexed SQL • PCAP Python • JSA ES6</p>
+        </div>
+        <span id="modeIndicator" class="status-pill">Connecting...</span>
+    </header>
+
+    <div class="panel">
+        <h3 style="margin-top:0;">Ingest Unstructured Support Ticket</h3>
+        <textarea id="ticketInput" placeholder="Enter support ticket with PII (emails, SA phone numbers, or 13-digit SA IDs)..."></textarea>
+        <div class="btn-row">
+            <button id="analyzeBtn">Execute AI Triage & Log Record</button>
+            <button class="secondary" id="sampleHwBtn">Load Hardware Sample</button>
+            <button class="secondary" id="sampleNetBtn">Load Network Sample</button>
+            <button class="secondary" id="sampleDbBtn">Load SQL Sample</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3 style="margin-top:0;">Sanitized SQL Audit Ledger</h3>
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Sanitized Ticket Text</th><th>PII Masked</th><th>Category</th><th>Sentiment</th><th>Engine</th></tr>
+            </thead>
+            <tbody id="ledgerBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        class TriageClientApp {
+            constructor() {
+                this.apiUrl = "http://127.0.0.1:5000/api";
+                this.isStaticDemo = false;
+                this.input = document.getElementById("ticketInput");
+                this.tbody = document.getElementById("ledgerBody");
+                this.modeBadge = document.getElementById("modeIndicator");
+                this.bindEvents();
+                this.initialize();
+            }
+
+            bindEvents() {
+                document.getElementById("analyzeBtn").addEventListener("click", () => this.submitTicket());
+                document.getElementById("sampleHwBtn").addEventListener("click", () => {
+                    this.input.value = "URGENT: Dell laptop won't boot and diagnostic RAM LED is blinking 2-4. Call technician at 0825551234 or user@ngi.co.za.";
+                });
+                document.getElementById("sampleNetBtn").addEventListener("click", () => {
+                    this.input.value = "Cat6 wall jack in Lab 3 lost packet connectivity to main router switch. Student ID 9904185000081 reported the outage.";
+                });
+                document.getElementById("sampleDbBtn").addEventListener("click", () => {
+                    this.input.value = "Production SQL query on customer table is timing out; please verify non-clustered index status. Email dba@enterprise.co.za.";
+                });
+            }
+
+            async initialize() {
+                try {
+                    const res = await fetch(`${this.apiUrl}/tickets`);
+                    if (!res.ok) throw new Error("Offline");
+                    const data = await res.json();
+                    this.modeBadge.textContent = "Connected: Local Flask + Ollama API";
+                    this.renderRows(data.tickets);
+                } catch {
+                    this.isStaticDemo = true;
+                    this.modeBadge.textContent = "Live Interactive Demo (GitHub Pages)";
+                    this.renderRows(this.getStaticTickets());
+                }
+            }
+
+            getStaticTickets() {
+                const stored = localStorage.getItem("demo_tickets");
+                return stored ? JSON.parse(stored) : [];
+            }
+
+            simulateClientSideTriage(rawText) {
+                let count = 0;
+                const redacted = rawText
+                    .replace(/[\w\.-]+@[\w\.-]+\.\w+/g, () => { count++; return "[REDACTED_EMAIL]"; })
+                    .replace(/\b(?:\+27|0)[1-9][0-9]{8}\b/g, () => { count++; return "[REDACTED_PHONE]"; })
+                    .replace(/\b[0-9]{13}\b/g, () => { count++; return "[REDACTED_SA_ID]"; });
+
+                const lower = redacted.toLowerCase();
+                let category = "Cloud & Software Access";
+                if (/cat6|wifi|router|packet|switch|network/.test(lower)) category = "Network Infrastructure";
+                else if (/ram|motherboard|blink|ssd|boot|laptop/.test(lower)) category = "Hardware Diagnostics";
+                else if (/sql|index|database|query/.test(lower)) category = "Database Administration";
+
+                const sentiment = /urgent|broken|outage|lost|crash|failed/.test(lower) ? "Negative (High Priority)" : "Neutral";
+                const tickets = this.getStaticTickets();
+                tickets.unshift({ id: tickets.length + 1, redacted_text: redacted, pii_count: count, category, sentiment, engine_used: "Browser Demo Engine" });
+                localStorage.setItem("demo_tickets", JSON.stringify(tickets));
+                return tickets;
+            }
+
+            async submitTicket() {
+                const text = this.input.value.trim();
+                if (!text) return;
+                if (this.isStaticDemo) {
+                    const updated = this.simulateClientSideTriage(text);
+                    this.input.value = "";
+                    this.renderRows(updated);
+                    return;
+                }
+                const res = await fetch(`${this.apiUrl}/triage`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text })
+                });
+                if (res.ok) {
+                    this.input.value = "";
+                    await this.initialize();
+                }
+            }
+
+            renderRows(tickets) {
+                if (!tickets.length) {
+                    this.tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted); text-align:center;">No tickets logged yet. Click a sample button above to test the pipeline.</td></tr>`;
+                    return;
+                }
+                this.tbody.innerHTML = tickets.map(t => `
+                    <tr>
+                        <td>#${t.id}</td>
+                        <td>${t.redacted_text}</td>
+                        <td>${t.pii_count} masked</td>
+                        <td><span class="tag">${t.category}</span></td>
+                        <td>${t.sentiment}</td>
+                        <td>${t.engine_used}</td>
+                    </tr>
+                `).join("");
+            }
+        }
+        new TriageClientApp();
+    </script>
+</body>
+</html>
